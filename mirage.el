@@ -32,8 +32,14 @@
 (defface mirage-default-face '((t (:background "purple"))) nil)
 (defvar mirage-overlays nil)
 
-(defun mirage-put-one (symbol face)
-  (let ((ov (make-overlay (match-beginning 0) (match-end 0))))
+(defun mirage-put-one (symbol face &optional start end)
+  (let* ((start-pos (if (null start)
+			(match-beginning 0)
+		      start))
+	 (end-pos (if (null end)
+		      (match-end 0)
+		    end))
+	 (ov (make-overlay start-pos end-pos)))
     (overlay-put ov 'face face)
     (overlay-put ov 'evaporate t)
     (overlay-put ov 'symbol symbol)
@@ -72,14 +78,25 @@
 
 ;; Main Functions
 
-(defun mirage-on ()
+(defun mirage-on-point ()
   (interactive)
   (push (mirage-put-one (thing-at-point 'symbol) 'mirage-default-face)
 	mirage-overlays))
 
-(defun mirage-off ()
+(defun mirage-on-region (beg end)
+  (let* ((text (buffer-substring beg end)))
+    (push (mirage-put-one text 'mirage-default-face beg end)
+	  mirage-overlays)))
+
+(defun mirage-off-all ()
   (interactive)
   (mapc #'mirage--delete mirage-overlays))
+
+(defun mirage-on ()
+  (interactive)
+  (if (region-active-p)
+      (mirage-on-region (region-beginning) (region-end))
+    (mirage-on-point)))
 
 ;; * provide
 
