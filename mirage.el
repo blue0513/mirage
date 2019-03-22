@@ -33,12 +33,8 @@
 (defvar mirage-overlays nil)
 
 (defun mirage-put-one (symbol face &optional start end)
-  (let* ((start-pos (if (null start)
-			(match-beginning 0)
-		      start))
-	 (end-pos (if (null end)
-		      (match-end 0)
-		    end))
+  (let* ((start-pos (if (null start) (match-beginning 0) start))
+	 (end-pos (if (null end) (match-end 0) end))
 	 (ov (make-overlay start-pos end-pos)))
     (overlay-put ov 'face face)
     (overlay-put ov 'evaporate t)
@@ -46,40 +42,47 @@
     ov))
 
 (defun mirage--delete (mirage)
-  (let* ((start (overlay-start mirage))
+  (let* ((buffer (overlay-buffer mirage))
+	 (start (overlay-start mirage))
 	 (end (overlay-end mirage))
-	 (region-count (mirage--count-chars-region start end))
-	 (line-count (mirage--count-chars-line start)))
+	 (region-count (mirage--count-chars-region start end buffer))
+	 (line-count (mirage--count-chars-line start buffer)))
     (if (> line-count region-count)
-	(mirage--delete-region start end)
-      (mirage-delete-line start))))
+	(mirage--delete-region buffer start end)
+      (mirage-delete-line buffer start))))
 
-(defun mirage--count-chars-line (start)
-  (save-excursion
-    (goto-char start)
-    (- (mirage--count-chars-region
-     (progn (forward-visible-line 0) (point))
-     (progn (forward-visible-line 1) (point)))
-       1)))
+(defun mirage--count-chars-line (start &optional buffer)
+  (let* ((target-buffer (if (null buffer) (current-buffer) buffer)))
+    (with-current-buffer target-buffer
+      (save-excursion
+	(goto-char start)
+	(- (mirage--count-chars-region
+	    (progn (forward-visible-line 0) (point))
+	    (progn (forward-visible-line 1) (point)))
+	   1)))))
 
-(defun mirage--delete-region (start end)
-  (delete-region start end))
+(defun mirage--delete-region (buffer start end)
+  (with-current-buffer buffer
+    (save-excursion
+      (delete-region start end))))
 
-(defun mirage-delete-line (pos)
-  (save-excursion
-    (goto-char pos)
-    (delete-region
-     (progn (forward-visible-line 0) (point))
-     (progn (forward-visible-line 1) (point)))))
+(defun mirage-delete-line (buffer pos)
+  (with-current-buffer buffer
+    (save-excursion
+      (goto-char pos)
+      (delete-region
+       (progn (forward-visible-line 0) (point))
+       (progn (forward-visible-line 1) (point))))))
 
-(defun mirage--count-chars-region (posBegin posEnd)
-  (let* ((char-count (- posEnd posBegin)))
-    char-count))
-
-;; Main Functions
+(defun mirage--count-chars-region (beg end &optional buffer)
+  (let* ((target-buffer (if (null buffer) (current-buffer) buffer)))
+    (with-current-buffer target-buffer
+      (save-excursion
+	(goto-char beg)
+	(let* ((char-count (- end beg)))
+	  char-count)))))
 
 (defun mirage-on-point ()
-  (interactive)
   (push (mirage-put-one (thing-at-point 'symbol) 'mirage-default-face)
 	mirage-overlays))
 
@@ -88,9 +91,12 @@
     (push (mirage-put-one text 'mirage-default-face beg end)
 	  mirage-overlays)))
 
+;; Main Functions
+
 (defun mirage-off-all ()
   (interactive)
-  (mapc #'mirage--delete mirage-overlays))
+  (mapc #'mirage--delete mirage-overlays)
+  (setq mirage-overlays nil))
 
 (defun mirage-on ()
   (interactive)
