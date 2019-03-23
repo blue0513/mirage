@@ -31,6 +31,8 @@
 
 (defface mirage-default-face '((t (:background "purple"))) nil)
 (defvar mirage-overlays nil)
+(defvar mirage--save-after-delete t)
+(defvar mirage--current-index 0)
 
 (defun mirage-put-one (symbol face &optional start end)
   (let* ((start-pos (if (null start) (match-beginning 0) start))
@@ -48,8 +50,12 @@
 	 (region-count (mirage--count-chars-region start end buffer))
 	 (line-count (mirage--count-chars-line start buffer)))
     (if (> line-count region-count)
-	(mirage--delete-region buffer start end)
-      (mirage-delete-line buffer start))))
+	(progn
+	  (mirage--delete-region buffer start end)
+	  (if mirage--save-after-delete (save-some-buffers)))
+      (progn
+	(mirage-delete-line buffer start)
+	(if mirage--save-after-delete (save-some-buffers))))))
 
 (defun mirage--count-chars-line (start &optional buffer)
   (let* ((target-buffer (if (null buffer) (current-buffer) buffer)))
@@ -91,7 +97,38 @@
     (push (mirage-put-one text 'mirage-default-face beg end)
 	  mirage-overlays)))
 
+(defun mirage-jump (jump-next)
+  (let* ((index mirage--current-index)
+	 (mirage (elt mirage-overlays index)))
+    (if (null mirage)
+	(progn (setq mirage--current-index 0)
+	       (mirage-jump-next))
+      (let* ((buffer (overlay-buffer mirage))
+	     (pos (overlay-start mirage)))
+	(if jump-next
+	    (setq mirage--current-index (+ 1 mirage--current-index))
+	  (setq mirage--current-index (- 1 mirage--current-index)))
+	(with-current-buffer buffer
+	  (switch-to-buffer buffer)
+	  (goto-char pos))))))
+
+(defun mirage-jump-prev ()
+  (let* ((jump-next nil))
+    (mirage-jump jump-next)))
+
+(defun mirage-jump-next ()
+  (let* ((jump-next t))
+    (mirage-jump jump-next)))
+
 ;; Main Functions
+
+(defun mirage-jump-next ()
+  (interactive)
+  (mirage-jump-next))
+
+(defun mirage-jump-prev ()
+  (interactive)
+  (mirage-jump-prev))
 
 (defun mirage-off-all ()
   (interactive)
